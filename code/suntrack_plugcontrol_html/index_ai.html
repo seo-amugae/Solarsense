@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AIoT 모니터링</title>
+  <style>
+    :root{
+      --bg:#f6f8fb;
+      --panel:#ffffff;
+      --text:#0e1726;
+      --muted:#5d6b7b;
+      --accent:#1f7aff;
+      --border:#e6ebf2;
+      --shadow:0 6px 18px rgba(16,24,40,0.06);
+      --gap:16px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans KR, Helvetica, Arial;
+      color:var(--text);
+      background:var(--bg);
+    }
+    header{
+      position:sticky; top:0; z-index:10;
+      display:flex; gap:16px; align-items:center; justify-content:space-between;
+      padding:14px 18px;
+      background:var(--panel);
+      border-bottom:1px solid var(--border);
+      box-shadow:var(--shadow);
+    }
+    .brand{font-weight:800; letter-spacing:.2px}
+    .brand small{display:block; font-weight:600; color:var(--muted); margin-top:2px}
+    .controls{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .group{
+      display:flex; gap:8px; align-items:center;
+      background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:8px 10px;
+    }
+    label{font-size:12px; color:var(--muted);}
+    select,button{
+      appearance:none;
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      padding:8px 10px;
+      border-radius:8px;
+      font-weight:600;
+    }
+    button{background:var(--accent); color:#fff; border-color:var(--accent); cursor:pointer}
+    button:active{transform:translateY(1px)}
+    main{padding:18px; max-width:1800px; margin:0 auto}
+    .grid{
+      display:grid;
+      grid-template-columns: 45% 55%;
+      gap:var(--gap);
+      align-items:start; /* allow natural height growth */
+    }
+    .card{
+      background:var(--panel); border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow);
+    }
+    .card header{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 14px; background:#fff; border-bottom:1px solid var(--border);
+    }
+    .title{font-weight:700}
+    .actions{display:flex; gap:8px}
+    .actions button{background:#fff; color:var(--text); border-color:var(--border)}
+    .frame{position:relative}
+    iframe{width:100%; border:0; display:block; overflow:hidden}
+    .status{display:flex; justify-content:space-between; align-items:center; padding:8px 12px; border-top:1px solid var(--border); color:var(--muted); font-size:12px}
+    .pill{padding:2px 8px; border-radius:999px; border:1px solid #d3e2ff; color:#1f7aff; background:#f2f7ff}
+    @media (max-width: 1100px){
+      .grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="brand">AIoT 모니터링</div>
+      <small class="brand">Solar & CDS</small>
+    </div>
+    <div class="controls">
+      <div class="group">
+        <label for="refresh">자동 새로고침</label>
+        <select id="refresh">
+          <option value="0">끄기</option>
+          <option value="5">5초</option>
+          <option value="10" selected>10초</option>
+          <option value="30">30초</option>
+          <option value="60">60초</option>
+        </select>
+        <button id="refreshNow" title="즉시 새로고침">새로고침</button>
+      </div>
+      <div class="group">
+        <span>시간(KST)</span>
+        <strong id="clock">--:--:--</strong>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid">
+      <section class="card" id="tableCard">
+        <header>
+          <div class="title">센서 테이블 (45%)</div>
+          <div class="actions">
+            <button data-action="reload" data-target="tableFrame">↻</button>
+            <button data-action="fullscreen" data-target="tableCard">⤢</button>
+          </div>
+        </header>
+        <div class="frame">
+          <iframe id="tableFrame" src="sensorTable.php" title="Sensor Table"></iframe>
+        </div>
+        <div class="status">
+          <span>최근 200행</span>
+          <span class="pill" id="tableStatus">LIVE</span>
+        </div>
+      </section>
+
+      <section class="card" id="graphCard">
+        <header>
+          <div class="title">그래프 (55%)</div>
+          <div class="actions">
+            <button data-action="reload" data-target="graphFrame">↻</button>
+            <button data-action="fullscreen" data-target="graphCard">⤢</button>
+          </div>
+        </header>
+        <div class="frame">
+          <iframe id="graphFrame" src="sensorGraph.php" title="Sensor Graph"></iframe>
+        </div>
+        <div class="status">
+          <span>필드: solar, cds0~7</span>
+          <span class="pill" id="graphStatus">LIVE</span>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    // --- KST Clock (robust) ---
+    const clockEl = document.getElementById('clock');
+    const kstFmt = new Intl.DateTimeFormat('ko-KR', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'Asia/Seoul' });
+    function tick(){ clockEl.textContent = kstFmt.format(new Date()); }
+    setInterval(tick, 500); tick();
+
+    // --- Iframe auto-resize (no inner scroll, page grows instead) ---
+    function fitIframe(iframe){
+      try{
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if(!doc) return;
+        // ensure inner content doesn't overflow inside iframe
+        doc.documentElement.style.overflow = 'hidden';
+        doc.body.style.overflow = 'hidden';
+        doc.body.style.margin = '0';
+        // full-width tables
+        doc.querySelectorAll('table').forEach(t=>{
+          t.style.width = '100%';
+          t.style.maxWidth = '100%';
+          t.style.boxSizing = 'border-box';
+        });
+        // compute natural height
+        const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+        iframe.style.height = h + 'px';
+      }catch(e){/* cross-origin: skip */}
+    }
+    function scheduleFit(iframe){
+      fitIframe(iframe);
+      setTimeout(()=>fitIframe(iframe), 50);
+      setTimeout(()=>fitIframe(iframe), 200);
+      setTimeout(()=>fitIframe(iframe), 800);
+      setTimeout(()=>fitIframe(iframe), 2000); // for charts rendering later
+    }
+
+    const tableFrame = document.getElementById('tableFrame');
+    const graphFrame = document.getElementById('graphFrame');
+    tableFrame.addEventListener('load', ()=>scheduleFit(tableFrame));
+    graphFrame.addEventListener('load', ()=>scheduleFit(graphFrame));
+    window.addEventListener('resize', ()=>{ scheduleFit(tableFrame); scheduleFit(graphFrame); });
+
+    // --- Refresh handling ---
+    const refreshSel = document.getElementById('refresh');
+    const tableStatus = document.getElementById('tableStatus');
+    const graphStatus = document.getElementById('graphStatus');
+    let timer = null;
+
+    function reloadFrame(id){
+      const f = document.getElementById(id);
+      if(!f) return;
+      const src = f.getAttribute('src').split('?')[0];
+      f.setAttribute('src', `${src}?t=${Date.now()}`);
+    }
+    function setIntervalFromSelect(){
+      if(timer){clearInterval(timer); timer=null;}
+      const sec = parseInt(refreshSel.value,10);
+      if(sec>0){
+        timer = setInterval(()=>{
+          reloadFrame('tableFrame');
+          reloadFrame('graphFrame');
+          tableStatus.textContent = 'LIVE';
+          graphStatus.textContent = 'LIVE';
+        }, sec*1000);
+      }
+    }
+    refreshSel.addEventListener('change', setIntervalFromSelect);
+    setIntervalFromSelect();
+
+    document.getElementById('refreshNow').addEventListener('click', ()=>{
+      reloadFrame('tableFrame'); reloadFrame('graphFrame');
+    });
+
+    // --- Card actions ---
+    document.querySelectorAll('.actions button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const act = btn.dataset.action;
+        const tgt = btn.dataset.target;
+        if(act==='reload'){ reloadFrame(tgt); }
+        else if(act==='fullscreen'){
+          const el = document.getElementById(tgt);
+          if(!document.fullscreenElement){ el.requestFullscreen?.(); }
+          else{ document.exitFullscreen?.(); }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
