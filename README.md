@@ -1,4 +1,4 @@
-# 🌞 빛 추적 스마트 전력 제어 시스템  
+# 빛 추적 스마트 전력 제어 시스템  
 <!-- <img width="1840" height="777" alt="Image" src="https://github.com/user-attachments/assets/3232f946-62a0-4f54-866c-43c3ea1adb5a" /> -->
 <!-- <img width="2308" height="685" alt="Image" src="https://github.com/user-attachments/assets/335bddba-67d5-42a7-bbe8-9c78f891ad86" /> -->
 
